@@ -1,0 +1,8 @@
+1. 修改/etc/default/grub文件
+    命令：sudo gedit /etc/default/grub
+    找到下行：
+        GRUB_CMDLINE_LINUX_DEFAULT
+    默认上述行中会有quiet选项,在其后添加nopti选项
+2. 刷新grub
+    命令：sudo update-grub
+3. 重启Linux系统
