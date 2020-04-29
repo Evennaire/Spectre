@@ -1,0 +1,1 @@
+cmd_/home/even/yyw/mmap_example/mmap_test_kernel.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/even/yyw/mmap_example/mmap_test_kernel.ko /home/even/yyw/mmap_example/mmap_test_kernel.o /home/even/yyw/mmap_example/mmap_test_kernel.mod.o
