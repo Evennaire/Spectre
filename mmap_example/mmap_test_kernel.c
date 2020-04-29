@@ -106,7 +106,7 @@ fops_close (struct inode *inode, struct file *filp)
 	return 0;
 }
 
-#define MY_MMAP_LEN 0x10000
+#define MY_MMAP_LEN 0x100000
 
 int
 fops_open (struct inode *inode, struct file *p_file)
@@ -119,7 +119,7 @@ fops_open (struct inode *inode, struct file *p_file)
 	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 
 	// allocating memory on the heap for the data
-	data = kcalloc(0x10000, sizeof(char), GFP_KERNEL);
+	data = kcalloc(MY_MMAP_LEN, sizeof(char), GFP_KERNEL);
 	if (data == NULL)
 	{
 		printk(KERN_ERR "insufficient memory\n");
@@ -127,6 +127,7 @@ fops_open (struct inode *inode, struct file *p_file)
 		return ENOMEM;
 	}
 
+        printk("Spectre: shared_memory_virt = 0x%lx\n", (unsigned long)data);
 	info->data = data;
 
 	/*
@@ -137,7 +138,7 @@ fops_open (struct inode *inode, struct file *p_file)
 	printk(KERN_INFO "  > ->data: %c%c%c\n", // the output here is correct
 	    *(info->data + 0xf000 + 0), *(info->data + 0xf000 + 1), *(info->data + 0xf000 + 2));
 	*/
-        printk("Spectre: shared_memory_virt = 0x%lx\n", (unsigned long)info->data);
+        
 
 	val = 0x0;
 	for (i = 0; i < (MY_MMAP_LEN / PAGE_SIZE); i++)

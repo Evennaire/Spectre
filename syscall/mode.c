@@ -102,8 +102,8 @@ static size_t sys_mycall2(size_t phys_address) {
         printk("Spectre: array2 is 0x%p\n", array2);
         return (size_t) array2;
     } else {
-        vir_address = (void*)((unsigned long)phys_address + BASE_ADDR);
-        //vir_address = (void*)phys_to_virt((unsigned long)phys_address);
+        //vir_address = (void*)((unsigned long)phys_address + BASE_ADDR);
+        vir_address = (void*)phys_to_virt(phys_address);
         printk("Spectre: pa is 0x%lx\nSpectre: va is 0x%lx\n", (unsigned long)phys_address, (unsigned long)vir_address);
         return (size_t) vir_address;
     }
